@@ -33,25 +33,6 @@ public class BitmapHelper {
     public static final int MEDIA_ART_BIG_WIDTH=128;
     public static final int MEDIA_ART_BIG_HEIGHT=128;
 
-    public static final Bitmap scaleBitmap(int targetW, int targetH, InputStream is) {
-        // Get the dimensions of the bitmap
-        BitmapFactory.Options bmOptions = new BitmapFactory.Options();
-        bmOptions.inJustDecodeBounds = true;
-        BitmapFactory.decodeStream(is, null, bmOptions);
-        int actualW = bmOptions.outWidth;
-        int actualH = bmOptions.outHeight;
-
-        // Determine how much to scale down the image
-        int scaleFactor = Math.min(actualW/targetW, actualH/targetH);
-
-        // Decode the image file into a Bitmap sized to fill the View
-        bmOptions.inJustDecodeBounds = false;
-        bmOptions.inSampleSize = scaleFactor;
-
-        Bitmap bitmap = BitmapFactory.decodeStream(is, null, bmOptions);
-        return bitmap;
-    }
-
     public static final Bitmap scaleBitmap(int scaleFactor, InputStream is) {
         // Get the dimensions of the bitmap
         BitmapFactory.Options bmOptions = new BitmapFactory.Options();

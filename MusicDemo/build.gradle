@@ -11,8 +11,8 @@ buildscript {
 apply plugin: 'android'
 
 android {
-    compileSdkVersion "android-L"
-    buildToolsVersion "21.0.0 rc1"
+    compileSdkVersion 21
+    buildToolsVersion "21.0.0"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_7
@@ -22,6 +22,4 @@ android {
 
 
 dependencies {
-    compile 'com.android.support:support-v4:18.0.+'
-    compile 'com.android.support:appcompat-v7:18.0.+'
 }

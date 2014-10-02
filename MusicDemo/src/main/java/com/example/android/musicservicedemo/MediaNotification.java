@@ -23,7 +23,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.content.res.Resources;
+import android.content.res.TypedArray;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.media.MediaDescription;
 import android.media.MediaMetadata;
 import android.media.session.MediaController;
@@ -36,6 +41,7 @@ import com.example.android.musicservicedemo.utils.BitmapHelper;
 import com.example.android.musicservicedemo.utils.LogHelper;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 
 /**
  * Keeps track of a notification and updates it automatically for a given
@@ -58,6 +64,7 @@ public class MediaNotification extends BroadcastReceiver {
     private MediaController mController;
     private MediaController.TransportControls mTransportControls;
     private final SparseArray<PendingIntent> mIntents = new SparseArray<PendingIntent>();
+    private final LinkedHashMap<String, Bitmap> mAlbumArtCache;
 
     private PlaybackState mPlaybackState;
     private MediaMetadata mMetadata;
@@ -67,6 +74,7 @@ public class MediaNotification extends BroadcastReceiver {
     private Notification.Action mPlayPauseAction;
 
     private String mCurrentAlbumArt;
+    private int mNotificationColor;
 
     private boolean mStarted = false;
 
@@ -74,18 +82,47 @@ public class MediaNotification extends BroadcastReceiver {
         mService = service;
         updateSessionToken();
 
+        // simple album art cache with up to 10 last accessed elements:
+        mAlbumArtCache = new LinkedHashMap<String, Bitmap>(10, 1f, true) {
+            @Override
+            protected boolean removeEldestEntry(Entry eldest) {
+                return size() > 10;
+            }
+        };
+
+        mNotificationColor = getNotificationColor();
+
         mNotificationManager = (NotificationManager) mService
                 .getSystemService(Context.NOTIFICATION_SERVICE);
 
         String pkg = mService.getPackageName();
-        mIntents.put(android.R.drawable.ic_media_pause, PendingIntent.getBroadcast(mService, 100,
+        mIntents.put(R.drawable.ic_pause_white_24dp, PendingIntent.getBroadcast(mService, 100,
                 new Intent(ACTION_PAUSE).setPackage(pkg), PendingIntent.FLAG_CANCEL_CURRENT));
-        mIntents.put(android.R.drawable.ic_media_play, PendingIntent.getBroadcast(mService, 100,
+        mIntents.put(R.drawable.ic_play_arrow_white_24dp, PendingIntent.getBroadcast(mService, 100,
                 new Intent(ACTION_PLAY).setPackage(pkg), PendingIntent.FLAG_CANCEL_CURRENT));
-        mIntents.put(android.R.drawable.ic_media_previous, PendingIntent.getBroadcast(mService, 100,
+        mIntents.put(R.drawable.ic_skip_previous_white_24dp, PendingIntent.getBroadcast(mService, 100,
                 new Intent(ACTION_PREV).setPackage(pkg), PendingIntent.FLAG_CANCEL_CURRENT));
-        mIntents.put(android.R.drawable.ic_media_next, PendingIntent.getBroadcast(mService, 100,
+        mIntents.put(R.drawable.ic_skip_next_white_24dp, PendingIntent.getBroadcast(mService, 100,
                 new Intent(ACTION_NEXT).setPackage(pkg), PendingIntent.FLAG_CANCEL_CURRENT));
+    }
+
+    protected int getNotificationColor() {
+        int notificationColor = 0;
+        String packageName = mService.getPackageName();
+        try {
+            Context packageContext = mService.createPackageContext(packageName, 0);
+            ApplicationInfo applicationInfo =
+                    mService.getPackageManager().getApplicationInfo(packageName, 0);
+            packageContext.setTheme(applicationInfo.theme);
+            Resources.Theme theme = packageContext.getTheme();
+            TypedArray ta = theme.obtainStyledAttributes(
+                    new int[] {android.R.attr.colorPrimary});
+            notificationColor = ta.getColor(0, Color.DKGRAY);
+            ta.recycle();
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
+        return notificationColor;
     }
 
     /**
@@ -187,61 +224,64 @@ public class MediaNotification extends BroadcastReceiver {
 
     private void updateNotificationMetadata() {
         LogHelper.d(TAG, "updateNotificationMetadata. mMetadata=" + mMetadata);
-        if (mMetadata == null) {
+        if (mMetadata == null || mPlaybackState == null) {
             return;
         }
 
         updatePlayPauseAction();
 
-        boolean firstRun = false;
+        mNotificationBuilder = new Notification.Builder(mService);
+        int playPauseActionIndex = 0;
 
-        if (mNotificationBuilder == null) {
-            firstRun = true;
-
-            mNotificationBuilder = new Notification.Builder(mService);
-
+        // If skip to previous action is enabled
+        if ((mPlaybackState.getActions() & PlaybackState.ACTION_SKIP_TO_PREVIOUS) != 0) {
             mNotificationBuilder
-                    .addAction(android.R.drawable.ic_media_previous,
+                    .addAction(R.drawable.ic_skip_previous_white_24dp,
                             mService.getString(R.string.label_previous),
-                            mIntents.get(android.R.drawable.ic_media_previous))
-                    .addAction(mPlayPauseAction)
-                    .addAction(android.R.drawable.ic_media_next,
-                            mService.getString(R.string.label_next),
-                            mIntents.get(android.R.drawable.ic_media_next))
-                    .setStyle(new Notification.MediaStyle()
-                            .setShowActionsInCompactView(1)  // only show play/pause in compact view
-                            .setMediaSession(mSessionToken))
-                    .setColor(android.R.attr.colorPrimaryDark)
-                    .setSmallIcon(R.drawable.ic_notification)
-                    .setVisibility(Notification.VISIBILITY_PUBLIC)
-                    .setUsesChronometer(true);
+                            mIntents.get(R.drawable.ic_skip_previous_white_24dp));
+            playPauseActionIndex = 1;
+        }
+
+        mNotificationBuilder.addAction(mPlayPauseAction);
+
+        // If skip to next action is enabled
+        if ((mPlaybackState.getActions() & PlaybackState.ACTION_SKIP_TO_NEXT) != 0) {
+            mNotificationBuilder.addAction(R.drawable.ic_skip_next_white_24dp,
+                    mService.getString(R.string.label_next),
+                    mIntents.get(R.drawable.ic_skip_next_white_24dp));
         }
 
         MediaDescription description = mMetadata.getDescription();
         Bitmap art = description.getIconBitmap();
+        if (art == null && description.getIconUri() != null) {
+            // This sample assumes the iconUri will be a valid URL formatted String, but
+            // it can actually be any valid Android Uri formatted String.
+            // async fetch the album art icon
+            String artUrl = description.getIconUri().toString();
+            art = mAlbumArtCache.get(artUrl);
+            if (art == null) {
+                fetchBitmapFromURLAsync(artUrl);
+            } else {
+                mNotificationBuilder.setLargeIcon(art);
+            }
+        }
+
         mNotificationBuilder
+                .setStyle(new Notification.MediaStyle()
+                        .setShowActionsInCompactView(playPauseActionIndex)  // only show play/pause in compact view
+                        .setMediaSession(mSessionToken))
+                .setColor(mNotificationColor)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setOngoing(true)
+                .setUsesChronometer(true)
                 .setContentTitle(description.getTitle())
                 .setContentText(description.getSubtitle())
                 .setLargeIcon(art);
 
         updateNotificationPlaybackState();
 
-        if (firstRun) {
-            mService.startForeground(NOTIFICATION_ID, mNotificationBuilder.build());
-        } else {
-            mNotificationManager.notify(NOTIFICATION_ID, mNotificationBuilder.build());
-        }
-
-        if (art == null && description.getIconUri() != null) {
-            // This sample assumes the iconUri will be a valid URL formatted String, but
-            // it can actually be any valid Android Uri formatted String.
-            String albumUrl = description.getIconUri().toString();
-            if (mCurrentAlbumArt == null || !mCurrentAlbumArt.equals(albumUrl)) {
-                mCurrentAlbumArt = albumUrl;
-                // async fetch the album art icon
-                getBitmapFromURLAsync(albumUrl);
-            }
-        }
+        mService.startForeground(NOTIFICATION_ID, mNotificationBuilder.build());
     }
 
     private void updatePlayPauseAction() {
@@ -250,10 +290,10 @@ public class MediaNotification extends BroadcastReceiver {
         int playPauseIcon;
         if (mPlaybackState.getState() == PlaybackState.STATE_PLAYING) {
             playPauseLabel = mService.getString(R.string.label_pause);
-            playPauseIcon = android.R.drawable.ic_media_pause;
+            playPauseIcon = R.drawable.ic_pause_white_24dp;
         } else {
             playPauseLabel = mService.getString(R.string.label_play);
-            playPauseIcon = android.R.drawable.ic_media_play;
+            playPauseIcon = R.drawable.ic_play_arrow_white_24dp;
         }
         if (mPlayPauseAction == null) {
             mPlayPauseAction = new Notification.Action(playPauseIcon, playPauseLabel,
@@ -297,7 +337,7 @@ public class MediaNotification extends BroadcastReceiver {
         mNotificationManager.notify(NOTIFICATION_ID, mNotificationBuilder.build());
     }
 
-    public void getBitmapFromURLAsync(final String source) {
+    public void fetchBitmapFromURLAsync(final String source) {
         LogHelper.d(TAG, "getBitmapFromURLAsync: starting asynctask to fetch ", source);
         new AsyncTask() {
             @Override
@@ -305,13 +345,12 @@ public class MediaNotification extends BroadcastReceiver {
                 try {
                     Bitmap bitmap = BitmapHelper.fetchAndRescaleBitmap(source,
                             BitmapHelper.MEDIA_ART_BIG_WIDTH, BitmapHelper.MEDIA_ART_BIG_HEIGHT);
+                    mAlbumArtCache.put(source, bitmap);
                     if (mMetadata != null) {
-                        MediaDescription currentDescription = mMetadata.getDescription();
+                        String currentSource = mMetadata.getDescription().getIconUri().toString();
                         // If the media is still the same, update the notification:
-                        if (mNotificationBuilder != null &&
-                                currentDescription.getIconUri().toString().equals(source)) {
+                        if (mNotificationBuilder != null && currentSource.equals(source)) {
                             LogHelper.d(TAG, "getBitmapFromURLAsync: set bitmap to ", source);
-                            mCurrentAlbumArt = source;
                             mNotificationBuilder.setLargeIcon(bitmap);
                             mNotificationManager.notify(NOTIFICATION_ID,
                                     mNotificationBuilder.build());
