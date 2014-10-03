@@ -717,15 +717,7 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
             mState = PlaybackState.STATE_BUFFERING;
 
             mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-            LogHelper.d(TAG, "****** playCurrentSong: about to call setDataSource. If no" +
-                    "'finished' log message shows up right after this, it's because the media " +
-                    "player is stuck in a deadlock. This is a known issue. In the meantime, you " +
-                    "will need to restart the device.");
-            try {
-                mMediaPlayer.setDataSource(source);
-            } finally {
-                LogHelper.d(TAG, "****** playCurrentSong: setDataSource finished, no deadlock :-)");
-            }
+            mMediaPlayer.setDataSource(source);
 
             // Starts preparing the media player in the background. When
             // it's done, it will call our OnPreparedListener (that is,
@@ -808,9 +800,9 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
         if (currentMusic != null) {
             // Set appropriate "Favorite" icon on Custom action:
             String mediaId = currentMusic.getString(MediaMetadata.METADATA_KEY_MEDIA_ID);
-            int favoriteIcon = android.R.drawable.btn_star_big_off;
+            int favoriteIcon = R.drawable.ic_star_off;
             if (mMusicProvider.isFavorite(mediaId)) {
-                favoriteIcon = android.R.drawable.btn_star_big_on;
+                favoriteIcon = R.drawable.ic_star_on;
             }
             LogHelper.d(TAG, "updatePlaybackState, setting Favorite custom action of music ",
                     mediaId, " current favorite=", mMusicProvider.isFavorite(mediaId));

@@ -28,6 +28,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.media.MediaDescription;
 import android.media.MediaMetadata;
@@ -35,13 +36,13 @@ import android.media.session.MediaController;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.AsyncTask;
+import android.util.LruCache;
 import android.util.SparseArray;
 
 import com.example.android.musicservicedemo.utils.BitmapHelper;
 import com.example.android.musicservicedemo.utils.LogHelper;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
 
 /**
  * Keeps track of a notification and updates it automatically for a given
@@ -58,13 +59,14 @@ public class MediaNotification extends BroadcastReceiver {
     public static final String ACTION_PREV = "com.example.android.musicservicedemo.prev";
     public static final String ACTION_NEXT = "com.example.android.musicservicedemo.next";
 
+    private static final int MAX_ALBUM_ART_CACHE_SIZE = 1024*1024;
 
     private final MusicService mService;
     private MediaSession.Token mSessionToken;
     private MediaController mController;
     private MediaController.TransportControls mTransportControls;
     private final SparseArray<PendingIntent> mIntents = new SparseArray<PendingIntent>();
-    private final LinkedHashMap<String, Bitmap> mAlbumArtCache;
+    private final LruCache<String, Bitmap> mAlbumArtCache;
 
     private PlaybackState mPlaybackState;
     private MediaMetadata mMetadata;
@@ -82,11 +84,12 @@ public class MediaNotification extends BroadcastReceiver {
         mService = service;
         updateSessionToken();
 
-        // simple album art cache with up to 10 last accessed elements:
-        mAlbumArtCache = new LinkedHashMap<String, Bitmap>(10, 1f, true) {
+        // simple album art cache that holds no more than
+        // MAX_ALBUM_ART_CACHE_SIZE bytes:
+        mAlbumArtCache = new LruCache<String, Bitmap>(MAX_ALBUM_ART_CACHE_SIZE) {
             @Override
-            protected boolean removeEldestEntry(Entry eldest) {
-                return size() > 10;
+            protected int sizeOf(String key, Bitmap value) {
+                return value.getByteCount();
             }
         };
 
@@ -252,6 +255,8 @@ public class MediaNotification extends BroadcastReceiver {
         }
 
         MediaDescription description = mMetadata.getDescription();
+
+        String fetchArtUrl = null;
         Bitmap art = description.getIconBitmap();
         if (art == null && description.getIconUri() != null) {
             // This sample assumes the iconUri will be a valid URL formatted String, but
@@ -260,9 +265,9 @@ public class MediaNotification extends BroadcastReceiver {
             String artUrl = description.getIconUri().toString();
             art = mAlbumArtCache.get(artUrl);
             if (art == null) {
-                fetchBitmapFromURLAsync(artUrl);
-            } else {
-                mNotificationBuilder.setLargeIcon(art);
+                fetchArtUrl = artUrl;
+                // use a placeholder art while the remote art is being downloaded
+                art = BitmapFactory.decodeResource(mService.getResources(), R.drawable.ic_default_art);
             }
         }
 
@@ -282,6 +287,9 @@ public class MediaNotification extends BroadcastReceiver {
         updateNotificationPlaybackState();
 
         mService.startForeground(NOTIFICATION_ID, mNotificationBuilder.build());
+        if (fetchArtUrl != null) {
+            fetchBitmapFromURLAsync(fetchArtUrl);
+        }
     }
 
     private void updatePlayPauseAction() {
@@ -339,27 +347,30 @@ public class MediaNotification extends BroadcastReceiver {
 
     public void fetchBitmapFromURLAsync(final String source) {
         LogHelper.d(TAG, "getBitmapFromURLAsync: starting asynctask to fetch ", source);
-        new AsyncTask() {
+        new AsyncTask<Void, Void, Bitmap>() {
             @Override
-            protected Object doInBackground(Object[] objects) {
+            protected Bitmap doInBackground(Void[] objects) {
+                Bitmap bitmap = null;
                 try {
-                    Bitmap bitmap = BitmapHelper.fetchAndRescaleBitmap(source,
+                    bitmap = BitmapHelper.fetchAndRescaleBitmap(source,
                             BitmapHelper.MEDIA_ART_BIG_WIDTH, BitmapHelper.MEDIA_ART_BIG_HEIGHT);
                     mAlbumArtCache.put(source, bitmap);
-                    if (mMetadata != null) {
-                        String currentSource = mMetadata.getDescription().getIconUri().toString();
-                        // If the media is still the same, update the notification:
-                        if (mNotificationBuilder != null && currentSource.equals(source)) {
-                            LogHelper.d(TAG, "getBitmapFromURLAsync: set bitmap to ", source);
-                            mNotificationBuilder.setLargeIcon(bitmap);
-                            mNotificationManager.notify(NOTIFICATION_ID,
-                                    mNotificationBuilder.build());
-                        }
-                    }
                 } catch (IOException e) {
                     LogHelper.e(TAG, e, "getBitmapFromURLAsync: " + source);
                 }
-                return null;
+                return bitmap;
+            }
+
+            @Override
+            protected void onPostExecute(Bitmap bitmap) {
+                if (bitmap != null && mMetadata != null &&
+                        mNotificationBuilder != null && mMetadata.getDescription() != null &&
+                        !source.equals(mMetadata.getDescription().getIconUri())) {
+                    // If the media is still the same, update the notification:
+                    LogHelper.d(TAG, "getBitmapFromURLAsync: set bitmap to ", source);
+                    mNotificationBuilder.setLargeIcon(bitmap);
+                    mNotificationManager.notify(NOTIFICATION_ID, mNotificationBuilder.build());
+                }
             }
         }.execute();
     }
