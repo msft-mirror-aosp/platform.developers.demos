@@ -35,6 +35,13 @@
         <meta-data android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc"/>
 
+        <!-- (OPTIONAL) use this meta data to indicate which icon should be used in media
+            notifications (for example, when the music changes and the user is
+            looking at another app) -->
+        <meta-data
+            android:name="com.google.android.gms.car.notification.SmallIcon"
+            android:resource="@drawable/ic_notification" />
+
         <service
             android:name=".MusicService"
             android:exported="true"

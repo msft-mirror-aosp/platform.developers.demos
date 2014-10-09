@@ -166,6 +166,7 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
         mWifiLock = ((WifiManager) getSystemService(Context.WIFI_SERVICE))
                 .createWifiLock(WifiManager.WIFI_MODE_FULL, "MusicDemo_lock");
 
+
         // Create the music catalog metadata provider
         mMusicProvider = new MusicProvider();
         mMusicProvider.retrieveMedia(new MusicProvider.Callback() {
@@ -183,6 +184,23 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
         mSession.setCallback(new MediaSessionCallback());
         mSession.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS |
                 MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
+
+        // Use these extras to reserve space for the corresponding actions, even when they are disabled
+        // in the playbackstate, so the custom actions don't reflow.
+        Bundle extras = new Bundle();
+        extras.putBoolean(
+            "com.google.android.gms.car.media.ALWAYS_RESERVE_SPACE_FOR.ACTION_SKIP_TO_NEXT",
+            true);
+        extras.putBoolean(
+            "com.google.android.gms.car.media.ALWAYS_RESERVE_SPACE_FOR.ACTION_SKIP_TO_PREVIOUS",
+            true);
+        // If you want to reserve the Queue slot when there is no queue
+        // (mSession.setQueue(emptylist)), uncomment the lines below:
+        // extras.putBoolean(
+        //   "com.google.android.gms.car.media.ALWAYS_RESERVE_SPACE_FOR.ACTION_QUEUE",
+        //   true);
+        mSession.setExtras(extras);
+
         updatePlaybackState(null);
 
         mMediaNotification = new MediaNotification(this);
@@ -771,6 +789,7 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
      *
      */
     private void updatePlaybackState(String error) {
+
         LogHelper.d(TAG, "updatePlaybackState, setting session playback state to " + mState);
         long position = PlaybackState.PLAYBACK_POSITION_UNKNOWN;
         if (mMediaPlayer != null && mMediaPlayer.isPlaying()) {
