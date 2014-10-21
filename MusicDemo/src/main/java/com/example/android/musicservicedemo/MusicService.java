@@ -16,7 +16,9 @@
 
 package com.example.android.musicservicedemo;
 
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.media.AudioManager;
 import android.media.MediaDescription;
 import android.media.MediaMetadata;
@@ -32,6 +34,9 @@ import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.WifiLock;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Message;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.service.media.MediaBrowserService;
@@ -107,6 +112,8 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
 
     // Action to thumbs up a media item
     private static final String CUSTOM_ACTION_THUMBS_UP = "thumbs_up";
+    // Delay stopSelf by using a handler.
+    private static final int STOP_DELAY = 30000;
 
     // The volume we set the media player to when we lose audio focus, but are
     // allowed to reduce the volume instead of stopping playback.
@@ -136,6 +143,9 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
 
     private MediaNotification mMediaNotification;
 
+    // Indicates whether the service was started.
+    private boolean mServiceStarted;
+
     enum AudioFocus {
         NoFocusNoDuck, // we don't have audio focus, and can't duck
         NoFocusCanDuck, // we don't have focus, but can play at a low volume
@@ -150,6 +160,19 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
     // Indicates if we should start playing immediately after we gain focus.
     private boolean mPlayOnFocusGain;
 
+    private Handler mDelayedStopHandler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            if ((mMediaPlayer != null && mMediaPlayer.isPlaying()) ||
+                    mPlayOnFocusGain) {
+                LogHelper.d(TAG, "Ignoring delayed stop since the media player is in use.");
+                return;
+            }
+            LogHelper.d(TAG, "Stopping service with delay handler.");
+            stopSelf();
+            mServiceStarted = false;
+        }
+    };
 
     /*
      * (non-Javadoc)
@@ -217,6 +240,7 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
         // Service is being killed, so make sure we release our resources
         handleStopRequest(null);
 
+        mDelayedStopHandler.removeCallbacksAndMessages(null);
         // In particular, always release the MediaSession to clean up resources
         // and notify associated MediaController(s).
         mSession.release();
@@ -232,7 +256,8 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
         // To ensure you are not allowing any arbitrary app to browse your app's contents, you
         // need to check the origin:
         if (!ANDROID_AUTO_PACKAGE_NAME.equals(clientPackageName) &&
-                !ANDROID_AUTO_EMULATOR_PACKAGE_NAME.equals(clientPackageName)) {
+                !ANDROID_AUTO_EMULATOR_PACKAGE_NAME.equals(clientPackageName) &&
+                !getApplication().getPackageName().equals(clientPackageName)) {
             // If the request comes from an untrusted package, return null. No further calls will
             // be made to other media browsing methods.
             LogHelper.w(TAG, "OnGetRoot: IGNORING request from untrusted package " + clientPackageName);
@@ -568,6 +593,16 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
     private void handlePlayRequest() {
         LogHelper.d(TAG, "handlePlayRequest: mState=" + mState);
 
+        mDelayedStopHandler.removeCallbacksAndMessages(null);
+        if (!mServiceStarted) {
+            LogHelper.v(TAG, "Starting service");
+            // The MusicService needs to keep running even after the calling MediaBrowser
+            // is disconnected. Call startService(Intent) and then stopSelf(..) when we no longer
+            // need to play media.
+            startService(new Intent(getApplicationContext(), MusicService.class));
+            mServiceStarted = true;
+        }
+
         mPlayOnFocusGain = true;
         tryToGetAudioFocus();
 
@@ -607,9 +642,9 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
         updatePlaybackState(null);
     }
 
-        /**
-         * Handle a request to stop music
-         */
+    /**
+     * Handle a request to stop music
+     */
     private void handleStopRequest(String withError) {
         LogHelper.d(TAG, "handleStopRequest: mState=" + mState + " error=", withError);
         mState = PlaybackState.STATE_STOPPED;
@@ -623,6 +658,7 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
 
         // service is no longer necessary. Will be started again if needed.
         stopSelf();
+        mServiceStarted = false;
     }
 
     /**
@@ -636,6 +672,10 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
         LogHelper.d(TAG, "relaxResources. releaseMediaPlayer=" + releaseMediaPlayer);
         // stop being a foreground service
         stopForeground(true);
+
+        // reset the delayed stop handler.
+        mDelayedStopHandler.removeCallbacksAndMessages(null);
+        mDelayedStopHandler.sendEmptyMessageDelayed(0, STOP_DELAY);
 
         // stop and release the Media Player, if it's available
         if (releaseMediaPlayer && mMediaPlayer != null) {
@@ -874,7 +914,6 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
                 mAudioFocus = AudioFocus.Focused;
             }
         }
-
     }
 
     /**

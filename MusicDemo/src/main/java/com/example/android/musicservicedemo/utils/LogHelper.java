@@ -18,37 +18,37 @@ package com.example.android.musicservicedemo.utils;
 import android.util.Log;
 
 public class LogHelper {
-    public final static void v(String tag, Object... messages) {
+    public static void v(String tag, Object... messages) {
         log(tag, Log.VERBOSE, null, messages);
     }
 
-    public final static void d(String tag, Object... messages) {
+    public static void d(String tag, Object... messages) {
         log(tag, Log.DEBUG, null, messages);
     }
 
-    public final static void i(String tag, Object... messages) {
+    public static void i(String tag, Object... messages) {
         log(tag, Log.INFO, null, messages);
     }
 
-    public final static void w(String tag, Object... messages) {
+    public static void w(String tag, Object... messages) {
         log(tag, Log.WARN, null, messages);
     }
 
-    public final static void w(String tag, Throwable t, Object... messages) {
+    public static void w(String tag, Throwable t, Object... messages) {
         log(tag, Log.WARN, t, messages);
     }
 
-    public final static void e(String tag, Object... messages) {
+    public static void e(String tag, Object... messages) {
         log(tag, Log.ERROR, null, messages);
     }
 
-    public final static void e(String tag, Throwable t, Object... messages) {
+    public static void e(String tag, Throwable t, Object... messages) {
         log(tag, Log.ERROR, t, messages);
     }
 
-    public final static void log(String tag, int level, Throwable t, Object... messages) {
+    public static void log(String tag, int level, Throwable t, Object... messages) {
         if (messages != null && Log.isLoggable(tag, level)) {
-            String message = null;
+            String message;
             if (messages.length == 1) {
                 message = messages[0] == null ? null : messages[0].toString();
             } else {
@@ -56,10 +56,12 @@ public class LogHelper {
                 for (Object m: messages) {
                     sb.append(m);
                 }
+                if (t != null) {
+                    sb.append("\n").append(Log.getStackTraceString(t));
+                }
                 message = sb.toString();
             }
-            Log.d(tag, message, t);
+            Log.println(level, tag, message);
         }
     }
-
 }
