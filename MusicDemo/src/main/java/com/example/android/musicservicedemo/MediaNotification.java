@@ -160,6 +160,7 @@ public class MediaNotification extends BroadcastReceiver {
         mStarted = false;
         mController.unregisterCallback(mCb);
         try {
+            mNotificationManager.cancel(NOTIFICATION_ID);
             mService.unregisterReceiver(this);
         } catch (IllegalArgumentException ex) {
             // ignore if the receiver is not registered.
