@@ -279,7 +279,6 @@ public class MediaNotification extends BroadcastReceiver {
                 .setColor(mNotificationColor)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .setOngoing(true)
                 .setUsesChronometer(true)
                 .setContentTitle(description.getTitle())
                 .setContentText(description.getSubtitle())
@@ -342,6 +341,9 @@ public class MediaNotification extends BroadcastReceiver {
         }
 
         updatePlayPauseAction();
+
+        // Make sure that the notification can be dismissed by the user when we are not playing:
+        mNotificationBuilder.setOngoing(mPlaybackState.getState() == PlaybackState.STATE_PLAYING);
 
         mNotificationManager.notify(NOTIFICATION_ID, mNotificationBuilder.build());
     }
