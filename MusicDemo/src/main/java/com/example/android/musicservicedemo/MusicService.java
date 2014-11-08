@@ -847,6 +847,12 @@ public class MusicService extends MediaBrowserService implements OnPreparedListe
         }
         stateBuilder.setState(mState, position, 1.0f, SystemClock.elapsedRealtime());
 
+        // Set the activeQueueItemId if the current index is valid.
+        if (QueueHelper.isIndexPlayable(mCurrentIndexOnQueue, mPlayingQueue)) {
+            MediaSession.QueueItem item = mPlayingQueue.get(mCurrentIndexOnQueue);
+            stateBuilder.setActiveQueueItemId(item.getQueueId());
+        }
+
         mSession.setPlaybackState(stateBuilder.build());
 
         if (mState == PlaybackState.STATE_PLAYING || mState == PlaybackState.STATE_PAUSED) {

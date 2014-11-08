@@ -24,5 +24,10 @@
     <string name="browse_musics_by_genre_subtitle">%1$s songs</string>
     <string name="random_queue_title">Random music</string>
     <string name="error_cannot_skip">Cannot skip</string>
+    <string name="error_loading_media">Error Loading Media</string>
+    <string name="play_item">Play item</string>
+    <string name="skip_previous">Skip to previous</string>
+    <string name="play_pause">play or pause</string>
+    <string name="skip_next">Skip to next</string>
 
 </resources>
