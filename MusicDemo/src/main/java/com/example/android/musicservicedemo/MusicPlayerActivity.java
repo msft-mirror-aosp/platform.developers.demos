@@ -46,7 +46,7 @@ public class MusicPlayerActivity extends Activity
     public void onMediaItemSelected(MediaBrowser.MediaItem item) {
         if (item.isPlayable()) {
             getMediaController().getTransportControls().playFromMediaId(item.getMediaId(), null);
-            QueueFragment queueFragment = QueueFragment.newInstance(item.getMediaId());
+            QueueFragment queueFragment = QueueFragment.newInstance();
             getFragmentManager().beginTransaction()
                     .replace(R.id.container, queueFragment)
                     .addToBackStack(null)
