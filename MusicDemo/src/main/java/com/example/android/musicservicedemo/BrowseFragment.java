@@ -68,7 +68,6 @@ public class BrowseFragment extends Fragment {
             mBrowserAdapter.clear();
             mBrowserAdapter.notifyDataSetInvalidated();
             for (MediaBrowser.MediaItem item : children) {
-                LogHelper.d(TAG, "MediaItem: -> " + item.getDescription().getDescription());
                 mBrowserAdapter.add(item);
             }
             mBrowserAdapter.notifyDataSetChanged();
@@ -91,6 +90,9 @@ public class BrowseFragment extends Fragment {
                 mMediaId = mMediaBrowser.getRoot();
             }
             mMediaBrowser.subscribe(mMediaId, mSubscriptionCallback);
+            if (mMediaBrowser.getSessionToken() == null) {
+                throw new IllegalArgumentException("No Session token");
+            }
             MediaController mediaController = new MediaController(getActivity(),
                     mMediaBrowser.getSessionToken());
             getActivity().setMediaController(mediaController);
@@ -167,7 +169,7 @@ public class BrowseFragment extends Fragment {
     private static class BrowseAdapter extends ArrayAdapter<MediaBrowser.MediaItem> {
 
         public BrowseAdapter(Context context) {
-            super(context, R.layout.list_item, new ArrayList<MediaBrowser.MediaItem>());
+            super(context, R.layout.media_list_item, new ArrayList<MediaBrowser.MediaItem>());
         }
 
         static class ViewHolder {
@@ -183,7 +185,7 @@ public class BrowseFragment extends Fragment {
 
             if (convertView == null) {
                 convertView = LayoutInflater.from(getContext())
-                        .inflate(R.layout.list_item, parent, false);
+                        .inflate(R.layout.media_list_item, parent, false);
                 holder = new ViewHolder();
                 holder.mImageView = (ImageView) convertView.findViewById(R.id.play_eq);
                 holder.mImageView.setVisibility(View.GONE);

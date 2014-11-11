@@ -17,7 +17,6 @@ package com.example.android.musicservicedemo;
 
 import android.app.Fragment;
 import android.content.ComponentName;
-import android.media.MediaMetadata;
 import android.media.browse.MediaBrowser;
 import android.media.session.MediaController;
 import android.media.session.MediaSession;
@@ -35,12 +34,11 @@ import com.example.android.musicservicedemo.utils.LogHelper;
 import java.util.List;
 
 /**
- * A class that shows the queue to the user
+ * A class that shows the Media Queue to the user.
  */
 public class QueueFragment extends Fragment {
 
-    private static final String TAG = QueueFragment.class.getSimpleName() + "BLAH";
-    private static final String ARGS_MEDIA_ID = "media_id";
+    private static final String TAG = QueueFragment.class.getSimpleName();
 
     private ImageButton mSkipNext;
     private ImageButton mSkipPrevious;
@@ -50,17 +48,18 @@ public class QueueFragment extends Fragment {
     private MediaController.TransportControls mTransportControls;
     private MediaController mMediaController;
     private PlaybackState mPlaybackState;
-    private boolean mConnected;
 
     private QueueAdapter mQueueAdapter;
-    private String mMediaId;
-    private ListView mListView;
 
     private MediaBrowser.ConnectionCallback mConnectionCallback =
             new MediaBrowser.ConnectionCallback() {
         @Override
         public void onConnected() {
-            LogHelper.d(TAG, "onConnected: session token " + mMediaBrowser.getSessionToken());
+            LogHelper.d(TAG, "onConnected: session token ", mMediaBrowser.getSessionToken());
+
+            if (mMediaBrowser.getSessionToken() == null) {
+                throw new IllegalArgumentException("No Session token");
+            }
 
             mMediaController = new MediaController(getActivity(),
                     mMediaBrowser.getSessionToken());
@@ -70,12 +69,6 @@ public class QueueFragment extends Fragment {
             getActivity().setMediaController(mMediaController);
             mPlaybackState = mMediaController.getPlaybackState();
 
-            long activeItemId = MediaSession.QueueItem.UNKNOWN_ID;
-            if (mPlaybackState != null) {
-                activeItemId = mPlaybackState.getActiveQueueItemId();
-            }
-            mQueueAdapter.setActiveQueueItemId(activeItemId);
-
             List<MediaSession.QueueItem> queue = mMediaController.getQueue();
             if (queue != null) {
                 mQueueAdapter.clear();
@@ -83,16 +76,12 @@ public class QueueFragment extends Fragment {
                 mQueueAdapter.addAll(queue);
                 mQueueAdapter.notifyDataSetChanged();
             }
-
-            LogHelper.d(TAG, "got playback state " + mPlaybackState);
-            mConnected = true;
             onPlaybackStateChanged(mPlaybackState);
         }
 
         @Override
         public void onConnectionFailed() {
             LogHelper.d(TAG, "onConnectionFailed");
-            mConnected = false;
         }
 
         @Override
@@ -100,7 +89,6 @@ public class QueueFragment extends Fragment {
             LogHelper.d(TAG, "onConnectionSuspended");
             mMediaController.unregisterCallback(mSessionCallback);
             mTransportControls = null;
-            mConnected = false;
             mMediaController = null;
             getActivity().setMediaController(null);
         }
@@ -120,14 +108,14 @@ public class QueueFragment extends Fragment {
             if (state == null) {
                 return;
             }
-            LogHelper.d(TAG, "Received playback state change to state " + state.getState());
+            LogHelper.d(TAG, "Received playback state change to state ", state.getState());
             mPlaybackState = state;
             QueueFragment.this.onPlaybackStateChanged(state);
         }
 
         @Override
         public void onQueueChanged(List<MediaSession.QueueItem> queue) {
-            LogHelper.d(TAG, "onQueueChanged " + queue);
+            LogHelper.d(TAG, "onQueueChanged ", queue);
             if (queue != null) {
                 mQueueAdapter.clear();
                 mQueueAdapter.notifyDataSetInvalidated();
@@ -137,14 +125,9 @@ public class QueueFragment extends Fragment {
         }
     };
 
-    public static QueueFragment newInstance(String mediaId) {
-        QueueFragment fragment = new QueueFragment();
-        Bundle args = new Bundle();
-        args.putString(ARGS_MEDIA_ID, mediaId);
-        fragment.setArguments(args);
-        return fragment;
+    public static QueueFragment newInstance() {
+        return new QueueFragment();
     }
-
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -165,7 +148,7 @@ public class QueueFragment extends Fragment {
 
         mQueueAdapter = new QueueAdapter(getActivity());
 
-        mListView = (ListView) rootView.findViewById(R.id.list_view);
+        ListView mListView = (ListView) rootView.findViewById(R.id.list_view);
         mListView.setAdapter(mQueueAdapter);
         mListView.setFocusable(true);
         mListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -173,13 +156,8 @@ public class QueueFragment extends Fragment {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 MediaSession.QueueItem item = mQueueAdapter.getItem(position);
                 mTransportControls.skipToQueueItem(item.getQueueId());
-                mQueueAdapter.setActiveQueueItemId(item.getQueueId());
-                mQueueAdapter.notifyDataSetChanged();
             }
         });
-
-        Bundle args = getArguments();
-        mMediaId = args.getString(ARGS_MEDIA_ID);
 
         mMediaBrowser = new MediaBrowser(getActivity(),
                 new ComponentName(getActivity(), MusicService.class),
@@ -187,7 +165,6 @@ public class QueueFragment extends Fragment {
 
         return rootView;
     }
-
 
     @Override
     public void onResume() {
@@ -210,7 +187,7 @@ public class QueueFragment extends Fragment {
 
 
     private void onPlaybackStateChanged(PlaybackState state) {
-        LogHelper.d(TAG, "onPlaybackStateChanged " + state);
+        LogHelper.d(TAG, "onPlaybackStateChanged ", state);
         if (state == null) {
             return;
         }
@@ -289,7 +266,6 @@ public class QueueFragment extends Fragment {
                     skipToNext();
                     break;
             }
-
         }
     };
 

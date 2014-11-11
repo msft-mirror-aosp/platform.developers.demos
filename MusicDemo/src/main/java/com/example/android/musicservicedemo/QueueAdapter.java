@@ -35,7 +35,7 @@ public class QueueAdapter extends ArrayAdapter<MediaSession.QueueItem> {
     private long mActiveQueueItemId = MediaSession.QueueItem.UNKNOWN_ID;
 
     public QueueAdapter(Activity context) {
-        super(context, R.layout.list_item, new ArrayList<MediaSession.QueueItem>());
+        super(context, R.layout.media_list_item, new ArrayList<MediaSession.QueueItem>());
     }
 
     public void setActiveQueueItemId(long id) {
@@ -53,7 +53,7 @@ public class QueueAdapter extends ArrayAdapter<MediaSession.QueueItem> {
 
         if (convertView == null) {
             convertView = LayoutInflater.from(getContext())
-                    .inflate(R.layout.list_item, parent, false);
+                    .inflate(R.layout.media_list_item, parent, false);
             holder = new ViewHolder();
             holder.mImageView = (ImageView) convertView.findViewById(R.id.play_eq);
             holder.mTitleView = (TextView) convertView.findViewById(R.id.title);
